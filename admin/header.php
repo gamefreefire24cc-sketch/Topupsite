@@ -1,0 +1,190 @@
+<?php 
+require_once '../db.php';
+if (!isset($_SESSION['user_uid']) || $_SESSION['user_role'] !== 'admin') {
+    header("Location: ../login.php");
+    exit();
+}
+
+// পেন্ডিং কাউন্টগুলো হেডার ব্যাজের জন্য
+$pendingOrdersCount = $pdo->query("SELECT COUNT(*) FROM orders WHERE status = 'Pending'")->fetchColumn() ?: 0;
+$pendingDepositsCount = $pdo->query("SELECT COUNT(*) FROM deposit_requests WHERE status = 'Pending'")->fetchColumn() ?: 0;
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OfferTopUp - Admin Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #1e293b; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* সাদা থিমের সাথে ম্যাচ করা অ্যাক্টিভ মেনু স্লাইডার */
+        .nav-item { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
+        .nav-item.active {
+            background: #f3e8ff; /* purple-100 */
+            color: #7e22ce; /* purple-700 */
+            border-left: 4px solid #9333ea; /* purple-600 */
+        }
+        .nav-item.active i { color: #9333ea; }
+
+        .admin-card {
+            background: #ffffff;
+            border: 1px solid #f1f5f9;
+            border-radius: 1.25rem;
+            box-shadow: 0 4px 20px -4px rgba(0,0,0,0.03);
+            transition: all 0.25s ease;
+        }
+        .admin-card:hover {
+            box-shadow: 0 12px 25px -4px rgba(0,0,0,0.06);
+        }
+    </style>
+</head>
+<body class="bg-slate-50">
+
+<div class="flex h-screen overflow-hidden relative">
+    
+    <!-- মোবাইল ব্ল্যাক ব্যাকড্রপ (ক্লিক করলে স্মুথলি বন্ধ হবে) -->
+    <div id="sidebarOverlay" onclick="toggleAdminSidebar()" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-40 hidden md:hidden transition-opacity duration-300"></div>
+
+    <!-- SIDEBAR (সাদা থিম ও আল্ট্রা-স্মুথ স্লাইড) -->
+    <aside id="adminSidebar" class="fixed inset-y-0 left-0 w-68 bg-white text-slate-600 flex flex-col z-50 transform -translate-x-full md:translate-x-0 md:static transition-transform duration-300 ease-in-out border-r border-slate-200/80 shadow-2xl md:shadow-none">
+        
+        <!-- ব্র্যান্ড লোগো হেডার -->
+        <div class="h-20 flex items-center justify-between px-6 border-b border-slate-200/80 bg-white">
+            <a href="dashboard.php" class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-purple-500/40">
+                    <i class="ri-gamepad-fill text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-black text-slate-900 tracking-wide leading-tight">OfferTopUp</h1>
+                    <span class="text-[10px] uppercase font-black text-purple-600 tracking-widest">Admin Studio</span>
+                </div>
+            </a>
+            <button onclick="toggleAdminSidebar()" class="md:hidden w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition">
+                <i class="ri-close-line text-xl"></i>
+            </button>
+        </div>
+
+        <!-- নেভিগেশন লিংকসমূহ -->
+        <nav class="flex-1 overflow-y-auto py-5 px-3 space-y-1.5">
+            <p class="px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Management</p>
+
+            <a href="dashboard.php" class="nav-item flex items-center justify-between px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+                <div class="flex items-center gap-3">
+                    <i class="ri-dashboard-3-line text-lg"></i>
+                    <span class="text-sm font-semibold">Dashboard</span>
+                </div>
+            </a>
+
+            <a href="orders.php" class="nav-item flex items-center justify-between px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+                <div class="flex items-center gap-3">
+                    <i class="ri-shopping-cart-2-line text-lg"></i>
+                    <span class="text-sm font-semibold">Orders</span>
+                </div>
+                <?php if($pendingOrdersCount > 0): ?>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-sm animate-pulse"><?php echo $pendingOrdersCount; ?></span>
+                <?php endif; ?>
+            </a>
+
+            <a href="deposits.php" class="nav-item flex items-center justify-between px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+                <div class="flex items-center gap-3">
+                    <i class="ri-wallet-3-line text-lg"></i>
+                    <span class="text-sm font-semibold">Deposits</span>
+                </div>
+                <?php if($pendingDepositsCount > 0): ?>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-sm"><?php echo $pendingDepositsCount; ?></span>
+                <?php endif; ?>
+            </a>
+
+            <p class="px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest mt-6 mb-2">Store Content</p>
+
+<a href="users.php" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+    <i class="ri-user-shared-line text-lg"></i>
+    <span class="text-sm font-semibold">User Management</span>
+</a>
+            <!-- নতুন যুক্ত করা গেম ম্যানেজমেন্ট মেনু -->
+            <a href="products.php" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+                <i class="ri-gamepad-line text-lg"></i>
+                <span class="text-sm font-semibold">Games & Categories</span>
+            </a>
+<a href="coupons.php" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+    <i class="ri-coupon-3-line text-lg"></i>
+    <span class="text-sm font-semibold">Promo Coupons</span>
+</a>
+<a href="resellers.php" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+    <i class="ri-team-line text-lg"></i>
+    <span class="text-sm font-semibold">Reseller API</span>
+</a>
+            <!-- আগের প্যাকেজ লিংক -->
+            <a href="packages.php" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+                <i class="ri-price-tag-3-line text-lg"></i>
+                <span class="text-sm font-semibold">Packages & Pricing</span>
+            </a>
+
+
+            <a href="banners.php" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+                <i class="ri-image-line text-lg"></i>
+                <span class="text-sm font-semibold">Banners Slider</span>
+            </a>
+
+            <a href="messages.php" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+                <i class="ri-message-3-line text-lg"></i>
+                <span class="text-sm font-semibold">User Inquiries</span>
+            </a>
+
+            <a href="settings.php" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-50 hover:text-purple-700">
+                <i class="ri-settings-4-line text-lg"></i>
+                <span class="text-sm font-semibold">Settings & Notice</span>
+            </a>
+        </nav>
+
+        <!-- নিচের প্রোফাইল ও লগআউট বক্স -->
+        <div class="p-4 border-t border-slate-200/80 bg-slate-50">
+            <div class="flex items-center gap-2.5 mb-3 px-2">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-md">
+                    A
+                </div>
+                <div class="min-w-0">
+                    <p class="text-xs font-bold text-slate-800 truncate"><?php echo htmlspecialchars($_SESSION['user_name'] ?? 'Admin'); ?></p>
+                    <span class="text-[10px] text-purple-600 font-semibold">Super Administrator</span>
+                </div>
+            </div>
+            <button onclick="adminLogout()" class="w-full py-2.5 px-3 text-rose-600 bg-white border border-rose-200 hover:bg-rose-500 hover:text-white rounded-xl transition text-xs font-bold flex items-center justify-center gap-2 shadow-sm">
+                <i class="ri-logout-box-r-line"></i> Logout Session
+            </button>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <div class="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
+        
+        <!-- TOPBAR -->
+        <header class="h-20 bg-white border-b border-slate-200/80 flex justify-between items-center px-4 md:px-8 z-10 shrink-0">
+            <div class="flex items-center gap-3">
+                <button onclick="toggleAdminSidebar()" class="md:hidden w-10 h-10 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 flex items-center justify-center transition shadow-sm">
+                    <i class="ri-menu-2-line text-xl"></i>
+                </button>
+                <div>
+                    <h2 class="font-black text-slate-800 text-base md:text-lg leading-tight">Control Center</h2>
+                    <p class="text-xs text-slate-400 hidden sm:block">Monitor platform activities, sales, and deliveries.</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <a href="../index.php" target="_blank" class="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-extrabold transition flex items-center gap-1.5 border border-purple-200/60 shadow-sm">
+                    <i class="ri-external-link-line"></i> <span class="hidden sm:inline">View Live Site</span>
+                </a>
+            </div>
+        </header>
+
+        <!-- MAIN SCROLLABLE CONTENT -->
+        <main class="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/80">
